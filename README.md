@@ -1,2 +1,2 @@
 # wp-plugins
-Custom plugins used the NCRN Cornell Wordpress site
+Custom plugins used by the NCRN Cornell Wordpress site
