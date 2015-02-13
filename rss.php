@@ -1,57 +1,43 @@
 <?php
 /*
-Plugin Name: RSS Via Shortcode for Page & Post
+Plugin Name: Ben's Custom RSS Plugin
 Version: 1.2.a
 Plugin URI: http://susantaslab.com/
-Description: Makes it easy to display an RSS feed on a page
-Author: Susanta K Beura
+Description: Makes it easy to display an RSS feed on a page. Derived from Susanta Beura's RSS plugin
+Author: Susanta K Beura, Ben Perry
 Author URI: http://susantaslab.com/
 License: GPL v2
 Usages: [rssonpage rss="Feed URL" feeds="Number of Items" excerpt="true/false" target="_blank|_self"]
 */
 
-function SLB_rss_sc( $atts ) {
-	extract(shortcode_atts(array(  
-	   	"rss" 		=> '',  
-		"feeds" 	=> '10',  
+function fetchRSS($atts) {
+	extract(shortcode_atts(array( 
+	   	"rss" 		=> '', 
+		"feeds" 	=> '10', 
 		"excerpt" 	=> true,
 		"target"	=> '_blank'
-	), $atts));
+	),$atts));
 
-	if ( $rss != "" && $rssFeed = get_rss_feed( $rss ) ) {
+	if ($rss != "" && $rssFeed = get_rss_feed($rss)) {
 
 		$rssFeed->enable_order_by_date(false);
-		$maxitems = $rssFeed->get_item_quantity( $feeds ); 
+		$maxitems = $rssFeed->get_item_quantity($feeds); 
 		if ($maxitems == 0) 
 			return '<ul><li>Content not available at'.$rss .'.</li></ul>';
 
-		$rss_items = $rssFeed->get_items( 0, $maxitems );
+		$rss_items = $rssFeed->get_items(0,$maxitems);
 
-		$content = '<ul>';
+		$content = '';
 
-		foreach ( $rss_items as $item ) {
-			$content .= '<li>';
-			if ($target != '_self'){
-				$content .= '<h3><a href="';
-				$content .= trim($item->get_permalink());
-				$content .= '" target="';
-				$content .= $target;
-				$content .= '" rel="external">';
-				$content .=  $item->get_title();
-				$content .= '</a></h3>'; 
-			}
-			else {
-				$content .= '<h3><a href="';
-				$content .= trim($item->get_permalink());
-				$content .= '" rel="external">';
-				$content .= $item->get_title();
-				$content .= '</a></h3>';
-			}
-			if ( $excerpt != false && $excerpt != "false") {
-				$content .= '<span class="rss_excerpt">';
-				//$content .= $item->get_description();
-				
-				//Modification to parse Title and Authors from ecommons
+		foreach ($rss_items as $item) {
+			$url = explode('/',trim($item->get_permalink(),'/'));
+			$handleGroup = $url[count($url)-2];
+			$handlePaper = $url[count($url)-1];
+			$title = preg_replace('!\s+!', ' ', $item->get_title());
+			$authors = "";
+			$abstact = "";
+			
+			if ($excerpt != false && $excerpt != "false") {
 				$desc = $item->get_description();
 				$iAuthors = strpos($desc,"Authors:",0);
 				$iAbstract = strpos($desc,"Abstract:",0);
@@ -62,60 +48,68 @@ function SLB_rss_sc( $atts ) {
 				}
 				$authors = substr($desc,$iAuthors+8,$iAbstract-$iAuthors-8);
 				$abstract = substr($desc,$iAbstract+$do);
-				$content .= "<span class='rss_section'>Authors:</span><span class='rss_authors'>$authors</span>";
-				$content .= "<span class='rss_section'>Abstract:</span><span class='rss_desc'>$abstract</span>";
-				$content .= '</span>';
 			}
-			$content .= '</li>';
+			
+			$authors = trim(preg_replace('!\s+!', ' ', str_replace(';',' and ',$authors)));
+			
+			$content.="@techreport{handle:$handleGroup:$handlePaper,\n";
+			$content.="Title = {".$title."},\n";
+			$content.="Author = {".$authors."},\n";
+			$content.="institution = { NSF Census Research Network - NCRN-Cornell },\n";//TODO: Pull from feed
+			$content.="type = {Preprint} ,\n";
+			$content.="Year = {".$item->get_date('Y')."},\n";
+			$content.="number={".$handleGroup.':'.$handlePaper."},\n";
+			$content.="URL = {".trim($item->get_permalink())."},\n";
+			$content.="abstract ={".$abstract."}\n";
+			$content.="}\n";
 		} 
-		$content .= '</ul>';
 	}
 	return $content;
 
 }
+add_shortcode('rss-ncrn','fetchRSS');
 
-add_shortcode( 'rssonpage', 'SLB_rss_sc' );
+add_action( 'wp', 'prefix_setup_schedule' );
 
-function Custom_Plugin_Links( $links, $file ) {
- 
-   if ( strpos( $file, 'rss-via-shortcode.php' ) !== false ) {
-      $new_links = array(
-               '<a href="http://wordpress.org/support/view/plugin-reviews/rss-via-shortcode-on-page-post?rate=5#postform" target="_blank">' . __( 'Rate us' ) . '</a>',
-               '<a href="http://support.susantaslab.com/" target="_blank">' . __( 'Contact support' ) . '</a>',
-               '<a href="http://susantaslab.com/career/freelance-job-openings/" target="_blank">'.__('Demo: Freelance Job Feed').'</a>',
-               '<a href="http://susantaslab.com/blog/bestsellers-at-amazon/" target="_blank">'.__('Demo: Amazon Bestsellers Listing').'</a> ',
-               '<a href="http://susantaslab.com/blog/hot-trends-at-ebay/" target="_blank">'.__('Demo: eBay Product Listing').'</a>'
-            );
-       
-      $links = array_merge( $links, $new_links );
-   }
-    
-   return $links;
+function prefix_setup_schedule() {
+	if(!wp_next_scheduled( 'prefix_hourly_event' )){
+		wp_schedule_event( time(), 'hourly', 'prefix_hourly_event');
+	}
 }
- 
-add_filter( 'plugin_row_meta', 'Custom_Plugin_Links', 10, 2 );
+
+add_action( 'prefix_hourly_event', 'fetchRSS2' );
+
+function fetchRSS2(){	
+	$a = array('rss' => 'http://ecommons.library.cornell.edu/feed/rss_1.0/1813/30503', 'excerpt' => 'summary true', 'target' => '_blank');
+	$content = fetchRSS($a);
+	$file = fopen("wp-content/cache/ecommons.bib","w");
+	fwrite($file,$content);
+	fclose($file);
+	return;
+}
+add_shortcode('rss-ncrn-cache','fetchRSS2');
 
 if (!function_exists('get_rss_feed')){
-	function get_rss_feed( $url ) {
-		require_once( ABSPATH . WPINC . '/class-feed.php' );
+	function get_rss_feed($url) {
+		require_once(ABSPATH . WPINC . '/class-feed.php');
 
 		$feed = new SimplePie();
 
-		$feed->set_sanitize_class( 'WP_SimplePie_Sanitize_KSES' );
+		$feed->set_sanitize_class('WP_SimplePie_Sanitize_KSES');
 		$feed->sanitize = new WP_SimplePie_Sanitize_KSES();
-		$feed->set_useragent('Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36');
+		$feed->set_useragent('Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML,like Gecko) Chrome/37.0.2062.120 Safari/537.36');
 
-		$feed->set_cache_class( 'WP_Feed_Cache' );
-		$feed->set_file_class( 'WP_SimplePie_File' );
+		$feed->set_cache_class('WP_Feed_Cache');
+		$feed->set_file_class('WP_SimplePie_File');
 
-		$feed->set_feed_url( $url );
-		$feed->set_cache_duration( apply_filters( 'wp_feed_cache_transient_lifetime', 12 * HOUR_IN_SECONDS, $url ) );
-		do_action_ref_array( 'wp_feed_options', array( &$feed, $url ) );
+		$feed->set_feed_url($url);
+		$feed->set_cache_duration(apply_filters('wp_feed_cache_transient_lifetime',12 * HOUR_IN_SECONDS,$url));
+		do_action_ref_array('wp_feed_options',array(&$feed,$url));
 		$feed->init();
 		$feed->handle_content_type();
 
-		if ( $feed->error() )
-			return new WP_Error( 'simplepie-error', $feed->error() );
+		if ($feed->error())
+			return new WP_Error('simplepie-error',$feed->error());
 		return $feed;
 	}
 }
