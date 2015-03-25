@@ -35,8 +35,8 @@ function fetchRSS($atts) {
 			$handlePaper = $url[count($url)-1];
 			$title = preg_replace('!\s+!', ' ', $item->get_title());
 			$authors = "";
-			$abstact = "";
-			
+			$abstract = "";
+
 			if ($excerpt != false && $excerpt != "false") {
 				$desc = $item->get_description();
 				$iAuthors = strpos($desc,"Authors:",0);
