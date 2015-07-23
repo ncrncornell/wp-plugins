@@ -1,12 +1,12 @@
 <?php
 /*
 Plugin Name: Ben's Custom RSS Plugin
-Version: 1.2.a
+Version: 1.2.1
 Plugin URI: http://susantaslab.com/
 Description: Makes it easy to display an RSS feed on a page. Derived from Susanta Beura's RSS plugin
 Author: Susanta K Beura, Ben Perry
 Author URI: http://susantaslab.com/
-License: GPL v2
+License: GPL v3
 Usages: [rssonpage rss="Feed URL" feeds="Number of Items" excerpt="true/false" target="_blank|_self"]
 */
 
@@ -26,32 +26,31 @@ function fetchRSS($atts) {
 			return '<ul><li>Content not available at'.$rss .'.</li></ul>';
 
 		$rss_items = $rssFeed->get_items(0,$maxitems);
-
 		$content = '';
 
 		foreach ($rss_items as $item) {
-			$url = explode('/',trim($item->get_permalink(),'/'));
+
+			$url = explode('/',trim($item->Get_permalink(),'/'));
 			$handleGroup = $url[count($url)-2];
 			$handlePaper = $url[count($url)-1];
-			$title = preg_replace('!\s+!', ' ', $item->get_title());
+			$title = preg_replace('!\s+!', ' ', $item->Get_title());
 			$authors = "";
-			$abstract = "";
-
-			if ($excerpt != false && $excerpt != "false") {
-				$desc = $item->get_description();
-				$iAuthors = strpos($desc,"Authors:",0);
-				$iAbstract = strpos($desc,"Abstract:",0);
-				$do = 9;
-				if($iAbstract === false){
-					$iAbstract = strpos($desc,"Description:",0);
-					$do = 12;
+			$abstract = $item->get_description();
+		
+			$lastAuthor = "";
+			foreach ($item->get_authors() as $a => $author){
+				if($author->get_name() != 1){
+					if($authors != ""){
+						$authors.= " and ";
+					}
+					$authors .=$author->get_name();
+					$lastAuthor = $author->get_name();
 				}
-				$authors = substr($desc,$iAuthors+8,$iAbstract-$iAuthors-8);
-				$abstract = substr($desc,$iAbstract+$do);
 			}
 			
-			$authors = trim(preg_replace('!\s+!', ' ', str_replace(';',' and ',$authors)));
-			
+			$iAuthors = strpos($abstract,$lastAuthor);
+			$abstract = substr($abstract,$iAuthors+strlen($lastAuthor)+1);
+							
 			$content.="@techreport{handle:$handleGroup:$handlePaper,\n";
 			$content.="Title = {".$title."},\n";
 			$content.="Author = {".$authors."},\n";
@@ -61,14 +60,13 @@ function fetchRSS($atts) {
 			$content.="number={".$handleGroup.':'.$handlePaper."},\n";
 			$content.="URL = {".trim($item->get_permalink())."},\n";
 			$content.="abstract ={".$abstract."}\n";
-			$content.="}\n";
+			$content.="}\n";	
 		} 
 	}
 	return $content;
 
 }
 add_shortcode('rss-ncrn','fetchRSS');
-
 add_action( 'wp', 'prefix_setup_schedule' );
 
 function prefix_setup_schedule() {
@@ -80,7 +78,7 @@ function prefix_setup_schedule() {
 add_action( 'prefix_hourly_event', 'fetchRSS2' );
 
 function fetchRSS2(){	
-	$a = array('rss' => 'http://ecommons.library.cornell.edu/feed/rss_1.0/1813/30503', 'excerpt' => 'summary true', 'target' => '_blank');
+	$a = array('rss' => 'http://ecommons.cornell.edu/feed/atom_1.0/1813/30503', 'excerpt' => 'summary true', 'target' => '_blank');
 	$content = fetchRSS($a);
 	$file = fopen("wp-content/cache/ecommons.bib","w");
 	fwrite($file,$content);
@@ -113,5 +111,4 @@ if (!function_exists('get_rss_feed')){
 		return $feed;
 	}
 }
-
 ?>
