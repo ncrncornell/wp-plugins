@@ -63,7 +63,7 @@ function fetchRSS($atts) {
 			$content.="}\n";	
 		} 
 	}
-	return $content;
+	return trim($content);
 
 }
 add_shortcode('rss-ncrn','fetchRSS');
@@ -80,12 +80,25 @@ add_action( 'prefix_hourly_event', 'fetchRSS2' );
 function fetchRSS2(){	
 	$a = array('rss' => 'http://ecommons.cornell.edu/feed/atom_1.0/1813/30503', 'excerpt' => 'summary true', 'target' => '_blank');
 	$content = fetchRSS($a);
-	$file = fopen("wp-content/cache/ecommons.bib","w");
-	fwrite($file,$content);
-	fclose($file);
+	//TODO: Check if bibtex is valid in a better way
+	if(!empty($content)){
+		$file = fopen("wp-content/cache/ecommons.bib","w");
+		fwrite($file,$content);
+		fclose($file);
+	}
 	return;
 }
 add_shortcode('rss-ncrn-cache','fetchRSS2');
+
+function checkRSSCache(){	
+	if(!file_exists("wp-content/cache/ecommons.bib")){
+		fetchRSS2();
+	}
+	$a = array('rss' => 'http://ecommons.cornell.edu/feed/atom_1.0/1813/30503', 'excerpt' => 'summary true', 'target' => '_blank');
+	$content = fetchRSS($a);
+	return;
+}
+add_shortcode('rss-ncrn-cache-check','checkRSSCache');
 
 if (!function_exists('get_rss_feed')){
 	function get_rss_feed($url) {
